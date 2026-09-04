@@ -53,3 +53,4 @@ aiohttp>=3.10.0
 python-dotenv>=1.0.1
 protobuf-decoder
 python-telegram-bot>=20.0
+pycryptodome
