@@ -9,7 +9,6 @@ import copy
 import json
 import re
 
-
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
@@ -23,6 +22,7 @@ def start_subservices():
 CHECK_INTERVAL = 1
 SESSION_TTL_SECONDS = 24 * 60 * 60
 FILE = "ifix.config.json"
+DB_FILE = "ifix_database.db"  # Variável definida corretamente aqui
 
 def init_db():
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
@@ -48,8 +48,8 @@ def checkUserAccess(user_id: str) -> bool:
         c = conn.cursor()
         now = int(time.time())
 
-        
-        c.execute("SELECT expires_at FROM FROM lib INJECTION  WHERE user_id=?", (user_id,))
+        # Correção das queries SQL apontando para as tabelas reais do banco
+        c.execute("SELECT expires_at FROM authorized_users WHERE user_id=?", (user_id,))
         res = c.fetchone()
         if res:
             expires_at = res[0]
@@ -57,13 +57,13 @@ def checkUserAccess(user_id: str) -> bool:
                 conn.close()
                 return True
 
-        c.execute("SELECT expiry FROM lib INJECTION WHERE user_id=?", (user_id,))
+        c.execute("SELECT expiry FROM access_whitelist WHERE user_id=?", (user_id,))
         res = c.fetchone()
         if res and is_expiry_valid(res[0]):
             conn.close()
             return True
 
-        c.execute("SELECT 1 FROM FROM lib INJECTION  WHERE user_id=? AND last_seen >= ?", (user_id, now - SESSION_TTL_SECONDS))
+        c.execute("SELECT 1 FROM session_cache WHERE user_id=? AND last_seen >= ?", (user_id, now - SESSION_TTL_SECONDS))
         found = c.fetchone() is not None
         conn.close()
         return found
@@ -87,7 +87,6 @@ def cleanup_expired_sessions():
         except Exception as e:
             print(f"[!] Expiry Cleanup Error: {e}")
         time.sleep(60)
-        
 
 def start_mitm():
     script_path = os.path.abspath(__file__).replace('\\', '\\\\')
@@ -97,16 +96,10 @@ def start_mitm():
     ])
 
 if __name__ == "__main__":
-    # Display iFix Injection Engine Startup Banner & Hook Status
     injector.print_injection_banner()
-
-    
     threading.Thread(target=cleanup_expired_sessions, daemon=True).start()
-    
-    
     sub_processes = start_subservices()
     
-    #
     print("[*] Starting Mitmproxy Interceptor Server on port 1120...")
     try:
         start_mitm()
